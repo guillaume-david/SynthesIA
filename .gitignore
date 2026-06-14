@@ -1,0 +1,18 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Secrets — ne JAMAIS committer
+.env
+.env.*
+!.env.example
+
+# Données locales (fiches, base SQLite)
+data/

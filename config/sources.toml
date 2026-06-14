@@ -1,0 +1,45 @@
+# SynthesIA — Sources de collecte (flux RSS)
+# Chaque source : nom lisible, url du flux RSS, langue, activée ou non.
+# État vérifié au 2026-06-14 (Étape 1).
+
+[[sources]]
+nom = "Opex360"
+url = "https://www.opex360.com/feed/"
+langue = "FR"
+active = true
+
+[[sources]]
+nom = "IRIS"
+url = "https://www.iris-france.org/feed/"
+langue = "FR"
+active = true
+
+[[sources]]
+nom = "RAND"
+url = "https://www.rand.org/pubs/commentary.xml"
+langue = "EN"
+active = true
+
+[[sources]]
+nom = "La Tribune"
+url = "https://www.latribune.fr/rss/homepage"
+langue = "FR"
+active = true
+
+# --- Sources sans flux RSS exploitable (à traiter par scraping plus tard) ---
+
+# Meta-Defense : RSS volontairement coupé (HTTP 410 Gone). Site payant.
+# Nécessitera du scraping ciblé (Étape 2+).
+[[sources]]
+nom = "Meta-Defense"
+url = "https://www.meta-defense.fr/feed/"
+langue = "FR"
+active = false
+
+# FRS : connexion bloquée depuis l'environnement WSL de dev (handshake TLS).
+# URL à revérifier depuis le serveur de prod.
+[[sources]]
+nom = "FRS"
+url = "https://www.frstrategie.org/rss.xml"
+langue = "FR"
+active = false
