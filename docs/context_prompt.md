@@ -36,7 +36,8 @@ Chaîne de traitement d'une journée (toute orchestrée par `brief/pipeline.py`)
 ```
 Collecte RSS → persistance articles → Tri (Haiku) → maj scores/statuts
 → Regroupement thématique → (top clusters) Extraction du corps → Analyse corrélée (Sonnet)
-→ persistance synthèses + indexation vectorielle → Élection de la « fiche reine » → Brief
+→ persistance synthèses + indexation vectorielle → Élection de la « fiche reine »
+→ Brief : affiché (web), et ENVOYÉ PAR EMAIL (canal quotidien principal)
 ```
 
 Déclenchement prévu : **2× par jour** (06h30, 13h30 — Étape 7, pas encore faite).
@@ -278,6 +279,21 @@ Sources éditables dans `config/sources.toml` sans toucher au code.
   - Lancer : `uv run uvicorn synthesia.api.app:app --host 0.0.0.0 --port 8000`.
     Sur le téléphone (même réseau) : `http://<IP-machine>:8000`.
 
+### `synthesia/notifier/` — envoi du brief par email (canal « push »)
+
+- **`mail.py`** — *envoi du brief par Gmail (SMTP SSL).*
+  - Config lue dans le `.env` : `EMAIL_EXPEDITEUR`, `EMAIL_MOT_DE_PASSE` (mot de passe
+    d'application Gmail), `EMAIL_DESTINATAIRE` (optionnel).
+  - `email_configure()` : vrai si expéditeur + mot de passe présents. **Si absent →
+    l'envoi est ignoré** (pas de spam en dev/tests).
+  - `_destinataires(...)` : **plusieurs destinataires** (séparés par virgules/points-virgules ;
+    défaut = expéditeur).
+  - `construire_email(produites, date)` → `(sujet, html, texte)` : reine en tête + autres
+    synthèses, version HTML stylée + repli texte.
+  - `envoyer(...)` / `envoyer_brief(produites, date)` : envoie via `smtp.gmail.com:465`.
+  - Appelé en fin de `pipeline.executer_brief` (échec d'envoi non bloquant pour le run).
+  - *Import de `pipeline` paresseux* pour éviter un cycle (pipeline importe ce module).
+
 ### `synthesia/pilote.py` — **OBSOLÈTE**
 
 - Démo de l'Étape 3 (collecte → tri → synthèse → rendu, **sans persistance**). **Remplacé**
@@ -305,13 +321,14 @@ Sources éditables dans `config/sources.toml` sans toucher au code.
 | **4b** | Persistance vectorielle (sqlite-vec + fastembed local) | ✅ Fait (testé) |
 | **5** | Brief quotidien (orchestration + persistance + élection) | ✅ Fait (pipeline réel persisté) |
 | **6** | API FastAPI (page mobile + JSON) | ✅ Fait |
-| **Déploiement** | Conteneur Docker sur le NAS DS224+, brief consultable au téléphone (LAN) | ✅ **Fait** (en service) |
-| **7** | Planification (Planificateur DSM 06h30 / 13h30) | 🟡 Préparé (guide) — à activer sur le NAS |
-| **8** | Accès distant sécurisé (Tailscale) | 🟡 Préparé (guide) — à activer sur le NAS |
+| **Email** | Envoi du brief par Gmail, plusieurs destinataires | ✅ **Fait** (envoi réel testé) |
+| **Déploiement** | Conteneur Docker sur le NAS DS224+ (image à jour : email + correctifs) | ✅ **Fait** (en service) |
+| **7** | Planification (Planificateur DSM 06h30 / 13h30) | 🟡 **En cours** : tâches à créer + tester |
+| **8** | Accès distant sécurisé (Tailscale) | 🟡 Préparé (guide) — **optionnel** depuis l'email |
 
-**Le cœur fonctionnel est complet ET déployé** : collecte → analyse → mémoire →
-consultation mobile, **en service sur le NAS**. Restent l'automatisation (7), l'accès
-extérieur (8), et la reconstruction de l'image avec le code à jour (cf. §8bis et `Todo.md`).
+**Le cœur fonctionnel est complet, déployé, et livré par email** : collecte → analyse →
+mémoire → consultation mobile + **email quotidien**, en service sur le NAS. Reste à
+finaliser la planification (7) ; l'accès extérieur (8) est devenu optionnel.
 
 ---
 
@@ -321,12 +338,20 @@ extérieur (8), et la reconstruction de l'image avec le code à jour (cf. §8bis
 Container Manager.
 
 **Ce qui tourne aujourd'hui** :
-- Conteneur **`synthesia`** up, dans le dossier `docker/synthesia` du NAS.
+- Conteneur **`synthesia`** up (image **reconstruite** avec le code à jour : email,
+  anti-500, progression, pysqlite3), dans le dossier `docker/synthesia` du NAS.
 - Serveur web accessible sur le **réseau local** : `http://192.168.1.15:9595`
   (port externe **9595** → 8000 interne ; IP du NAS **192.168.1.15**).
 - Base et cache du modèle persistés dans le volume `data/` (créé **vide** à la main sur
   le NAS — un bind mount Synology exige que le dossier existe).
-- Clé API fournie via un fichier `.env` **sur le NAS** (jamais dans l'image).
+- `.env` **sur le NAS** : `ANTHROPIC_API_KEY` + variables `EMAIL_*` (transmises au
+  conteneur via `docker-compose.yml`). Jamais dans l'image.
+- **Brief envoyé par email** à chaque exécution du pipeline.
+
+**Reconstruire l'image après une modif de code** : Container Manager n'a pas toujours de
+bouton « Construire ». Méthode fiable : Projet → Arrêter → **Supprimer** (les fichiers et
+`data/` du NAS restent) → onglet Image → supprimer `synthesia:latest` → **Créer** le projet
+à nouveau (rebuild). Détail dans `docs/deploiement-synology.md`.
 
 **Pièges rencontrés et résolus** (utile si ça recasse) :
 1. **Bind mount échoué** : le dossier `data` doit exister sur le NAS avant le 1er démarrage.

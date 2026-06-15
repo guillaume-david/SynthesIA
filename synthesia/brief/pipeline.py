@@ -17,11 +17,13 @@ Lancer : uv run python -m synthesia.brief.pipeline
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 
 from synthesia.analyse.synthese import ArticleSource, analyser
 from synthesia.analyse.tri import regrouper, trier
 from synthesia.collecte.extraction import extraire
 from synthesia.collecte.rss import collecter_tout
+from synthesia.notifier import mail
 from synthesia.stockage import base, vecteurs
 
 SEUIL_RETENU = 60        # score de tri minimal pour analyser un article
@@ -150,6 +152,15 @@ def executer_brief(
         print("BRIEF DU JOUR")
         print("=" * 70)
         print(rendre_brief(reine.record, reine.sources))
+
+        # Envoi par email (si configuré dans le .env ; sinon ignoré silencieusement).
+        if mail.email_configure():
+            date_jour = datetime.now().strftime("%Y-%m-%d")
+            try:
+                mail.envoyer_brief(produites, date_jour)
+                print("📧 Brief envoyé par email.")
+            except Exception as exc:  # un échec d'envoi ne doit pas casser le run
+                print(f"  ! envoi email échoué : {exc}")
 
     conn.close()
     return produites

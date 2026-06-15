@@ -41,13 +41,18 @@ NAS DS224+
 2. Copies-y le contenu du projet (au minimum : `Dockerfile`, `docker-compose.yml`,
    `.dockerignore`, `pyproject.toml`, `uv.lock`, le dossier `synthesia/`, le dossier
    `config/`). Glisser-déposer depuis ton PC suffit.
-3. **Crée le fichier de clé API** : dans `docker/synthesia`, crée un fichier nommé
-   **`.env`** contenant **une seule ligne** :
+3. **Crée le fichier `.env`** : dans `docker/synthesia`, crée un fichier nommé **`.env`** :
    ```
    ANTHROPIC_API_KEY=sk-ant-...ta_clé...
+
+   # Envoi du brief par email (optionnel mais recommandé)
+   EMAIL_EXPEDITEUR=ton.adresse@gmail.com
+   EMAIL_MOT_DE_PASSE=mot de passe d'application Gmail
+   EMAIL_DESTINATAIRE=chef1@exemple.fr, chef2@exemple.fr
    ```
-   > C'est ce fichier (sur le NAS, jamais dans l'image, jamais sur GitHub) qui fournit
-   > la clé au conteneur.
+   > Ce fichier (sur le NAS, jamais dans l'image, jamais sur GitHub) fournit la clé API
+   > **et** les identifiants email au conteneur (via `docker-compose.yml`).
+   > Plusieurs destinataires : séparés par des virgules.
 
 ---
 
@@ -122,6 +127,24 @@ Dans **DSM → Panneau de configuration → Planificateur de tâches → Créer 
    ```
 
 ➡️ Ton brief, partout, chiffré, sans exposer ton NAS.
+
+---
+
+## Mettre à jour l'appli (après une modif du code)
+
+Quand le code change (nouvelles fonctions, correctifs…), il faut **reconstruire l'image** :
+
+1. **Remplace les fichiers** modifiés dans `docker/synthesia` (File Station) — au minimum
+   le dossier `synthesia/` et, si besoin, `pyproject.toml` / `uv.lock` / `Dockerfile` /
+   `docker-compose.yml`. (Ne touche pas à `data/` ni `.env`.)
+2. **Container Manager → Projet `synthesia` → Action → Arrêter**.
+3. **Action → Construire** (rebuild) — le NAS refabrique l'image avec le code à jour.
+4. **Action → Démarrer**.
+5. Vérifie : la page web répond toujours, et un `docker exec synthesia python -m
+   synthesia.brief.pipeline` envoie bien le mail.
+
+> Si tu as modifié `docker-compose.yml` (ex. ajout des variables email), il faut bien
+> refaire « Construire » pour que le conteneur reçoive les nouvelles variables.
 
 ---
 

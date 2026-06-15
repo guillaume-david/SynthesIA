@@ -82,3 +82,8 @@ uv add <paquet>                                  # ajouter une dépendance
   uv run python -c "from synthesia.analyse.client import get_client; print(get_client().messages.create(model='claude-haiku-4-5', max_tokens=10, messages=[{'role':'user','content':'ping'}]).content[0].text)"
   ```
 - **Page web vide / « Aucune synthèse »** → lance d'abord le pipeline pour remplir la base.
+
+
+## Les envois Gmail:
+aller build une appli mail ici: https://myaccount.google.com/apppasswords
+ensuite on met le nom (avec le compte GMAIL associé off.guillaume...) on récupère le mdp et boum
