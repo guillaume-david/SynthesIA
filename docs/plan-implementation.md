@@ -163,8 +163,13 @@ But : permettre à la passe 2 de corréler plutôt que de résumer pièce par pi
 | **4b** | Persistance vectorielle | sqlite-vec + embeddings locaux (fastembed, multilingue 384d) : recherche par sens | ✅ Fait (testé) |
 | **5** | Brief quotidien | Orchestration complète + persistance + élection de la synthèse reine + rendu | ✅ Fait (pipeline réel persisté) |
 | **6** | API FastAPI | Page web mobile (brief reine + synthèses du jour + détail) + point JSON | ✅ Fait (Mode B/recherche : plus tard) |
-| **7** | Planification | cron 6h30 / 13h30 | ⏳ |
-| **8** | Accès distant sécurisé | Tailscale, pas d'exposition directe | ⏳ |
+| **7** | Planification | Planificateur DSM 6h30 / 13h30 (`docker exec`) | 🟡 Préparé (guide Synology) — à exécuter sur le NAS |
+| **8** | Accès distant sécurisé | Tailscale (paquet Synology), zéro port exposé | 🟡 Préparé (guide Synology) — à exécuter sur le NAS |
+
+**Déploiement Synology DS224+** : `Dockerfile`, `docker-compose.yml`, `.dockerignore` +
+guide pas-à-pas `docs/deploiement-synology.md`. Code rendu résilient pour conteneur
+(bascule `pysqlite3` si extensions SQLite désactivées ; cache du modèle d'embedding
+persisté dans le volume `data/`).
 
 > Ordre de test : valider le prompt LLM (Étape 3) **avant** d'industrialiser la collecte complète.
 

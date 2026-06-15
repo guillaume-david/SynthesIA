@@ -150,7 +150,15 @@ Sources éditables dans `config/sources.toml` sans toucher au code.
 - **`.gitignore`** — ignore `.venv`, `.env*` (sauf `.env.example`), `data/`, caches Python.
 - **`main.py`** — **stub d'origine non utilisé** (juste un `print("Hello")`). Point d'entrée
   réel = les modules `synthesia.*`. À nettoyer ou repurposer un jour.
-- **`Changelog.md`**, **`README.md`** — minimaux pour l'instant.
+- **`README.md`** — mode d'emploi : prérequis, les 2 programmes (pipeline vs serveur),
+  commandes, dépannage.
+- **`Todo.md`** — reste à faire (déploiement, améliorations, dette).
+- **`Changelog.md`** — minimal.
+- **`Dockerfile`** — recette de l'image conteneur (base `uv` + Python 3.12, x86-64).
+  `uv sync` installe les deps ; le serveur web est le processus principal.
+- **`docker-compose.yml`** — config du conteneur (port externe au choix, volume `./data`,
+  clé API via `.env` du NAS). Utilisé par Container Manager (« Projet »).
+- **`.dockerignore`** — exclut `.env`, `data/`, `.venv`, `.git` de l'image.
 
 ### `config/`
 
@@ -231,7 +239,11 @@ Sources éditables dans `config/sources.toml` sans toucher au code.
   - `embed(texte)` → vecteur de 384 floats.
   - `texte_synthese(synthese)` : construit le texte représentatif à vectoriser
     (thème + assertion + argument + analogie).
+  - `CACHE_EMBED` : le modèle est mis en cache dans `data/.fastembed` (volume persistant
+    → pas de re-téléchargement à chaque redémarrage du conteneur).
   - `get_connection()` : comme `base.get_connection` **+ charge l'extension sqlite-vec**.
+    **Filet conteneur** : si le SQLite standard a le chargement d'extensions désactivé,
+    bascule automatiquement sur `pysqlite3` (`_connexion_pysqlite3`).
   - `init_vec(conn)` : crée la table virtuelle `vec_synthese`.
   - `indexer_synthese(conn, id, texte)` : calcule et stocke l'embedding.
   - `rechercher(conn, requete, k)` : **recherche par sens** — embed la requête, KNN sqlite-vec,
@@ -246,12 +258,15 @@ Sources éditables dans `config/sources.toml` sans toucher au code.
     « à recouper »).
   - `executer_brief(...)` : le pipeline complet (cf. §2). Persiste articles, scores, statuts,
     synthèses et vecteurs. **Borne le coût** (top N clusters) et **liste** les clusters non
-    traités. Élit la reine (meilleur score) et l'affiche.
+    traités. **Affiche sa progression** (`Tri…`, `analyse…`) pour ne pas paraître figé.
+    Élit la reine (meilleur score) et l'affiche.
   - Lancer : `uv run python -m synthesia.brief.pipeline` (⚠ consomme l'API).
 
 ### `synthesia/api/` — Étape 6 (consultation mobile)
 
 - **`app.py`** — *serveur web FastAPI, page lisible sur téléphone.*
+  - `lifespan` : au démarrage, `init_db` → garantit que les tables existent (base vide →
+    page « Aucune synthèse », **jamais d'erreur 500** même si le pipeline n'a pas tourné).
   - `_syntheses_du_jour(conn)` : synthèses du jour le plus récent, **reclassées par score**
     (la reine d'abord — corrige un piège du tri par date d'insertion).
   - `_sources(conn, id)` : liste des sources d'une synthèse.
@@ -272,6 +287,7 @@ Sources éditables dans `config/sources.toml` sans toucher au code.
 
 - **`context_prompt.md`** — CE FICHIER (porte d'entrée rapide).
 - **`plan-implementation.md`** — le plan détaillé, **source de vérité** (étapes, schéma, prompts).
+- **`deploiement-synology.md`** — guide pas-à-pas de déploiement sur le NAS DS224+.
 - **`target.md`** — le brief initial du porteur (vision d'origine, 2 modes de prompt).
 - **`memo.md`** — liens utiles (génération de clé API, ajout de fonds).
 
@@ -289,11 +305,43 @@ Sources éditables dans `config/sources.toml` sans toucher au code.
 | **4b** | Persistance vectorielle (sqlite-vec + fastembed local) | ✅ Fait (testé) |
 | **5** | Brief quotidien (orchestration + persistance + élection) | ✅ Fait (pipeline réel persisté) |
 | **6** | API FastAPI (page mobile + JSON) | ✅ Fait |
-| **7** | Planification cron (06h30 / 13h30) | ⏳ **Prochaine étape** |
-| **8** | Accès distant sécurisé (Tailscale) | ⏳ |
+| **Déploiement** | Conteneur Docker sur le NAS DS224+, brief consultable au téléphone (LAN) | ✅ **Fait** (en service) |
+| **7** | Planification (Planificateur DSM 06h30 / 13h30) | 🟡 Préparé (guide) — à activer sur le NAS |
+| **8** | Accès distant sécurisé (Tailscale) | 🟡 Préparé (guide) — à activer sur le NAS |
 
-**Le cœur fonctionnel est complet** : collecte → analyse → mémoire → consultation mobile.
-Restent l'automatisation (7) et l'accès distant sécurisé (8).
+**Le cœur fonctionnel est complet ET déployé** : collecte → analyse → mémoire →
+consultation mobile, **en service sur le NAS**. Restent l'automatisation (7), l'accès
+extérieur (8), et la reconstruction de l'image avec le code à jour (cf. §8bis et `Todo.md`).
+
+---
+
+## 8bis. Déploiement Synology — état réel (session du 2026-06-14)
+
+**Cible** : Synology **DS224+** (x86-64, ~2 Go RAM). Méthode : **Docker** via
+Container Manager.
+
+**Ce qui tourne aujourd'hui** :
+- Conteneur **`synthesia`** up, dans le dossier `docker/synthesia` du NAS.
+- Serveur web accessible sur le **réseau local** : `http://192.168.1.15:9595`
+  (port externe **9595** → 8000 interne ; IP du NAS **192.168.1.15**).
+- Base et cache du modèle persistés dans le volume `data/` (créé **vide** à la main sur
+  le NAS — un bind mount Synology exige que le dossier existe).
+- Clé API fournie via un fichier `.env` **sur le NAS** (jamais dans l'image).
+
+**Pièges rencontrés et résolus** (utile si ça recasse) :
+1. **Bind mount échoué** : le dossier `data` doit exister sur le NAS avant le 1er démarrage.
+2. **Erreur 500 sur la page** : la base était vide **sans tables** (le serveur ne créait
+   pas les tables). Réglé en lançant le pipeline (`docker exec synthesia python -m
+   synthesia.brief.pipeline`) **et** par le correctif `lifespan` dans `app.py` (init au
+   démarrage). ⚠️ Ce correctif n'est **pas encore dans l'image** (conteneur = ancien code).
+3. **Téléphone : « rien ne s'affiche »** alors que le PC marche → le navigateur mobile
+   **force le HTTPS** sur un serveur HTTP simple (logs : `Invalid HTTP request received`).
+   Contournement actuel : navigation privée, ou désactiver le forçage HTTPS du navigateur.
+   **Solution durable = HTTPS via Tailscale (Étape 8).**
+
+**Important** : le conteneur en service tourne avec le code **d'avant** les derniers
+correctifs (anti-500, messages de progression, bascule pysqlite3). **À reconstruire**
+quand le code à jour sera sur le NAS (cf. `Todo.md`).
 
 ---
 
@@ -323,18 +371,24 @@ uv add <paquet>                                  # ajouter une dépendance
 5. **Mode B (requêtes transversales)** : la brique de récupération (`vecteurs.rechercher`)
    existe ; il manque la couche LLM qui synthétise une réponse actionnable + son exposition
    dans l'API. Prévu après.
-6. **`main.py`** est un stub mort à nettoyer.
+6. **`main.py`** (stub mort) et **`pilote.py`** (obsolète) à nettoyer.
+7. **Conteneur NAS = ancien code** : reconstruire l'image après avoir copié le code à jour.
+8. **Accès téléphone en HTTP** : forçage HTTPS des navigateurs mobiles → contourné par
+   navigation privée ; à régler proprement avec Tailscale (HTTPS).
+9. **RAM du NAS (~2 Go)** : pic pendant le pipeline (modèle d'embedding) — à surveiller.
+
+> Liste actionnable complète et priorisée : **`Todo.md`** à la racine.
 
 ---
 
 ## 11. Comment reprendre le travail
 
-1. Lis `docs/plan-implementation.md` (le plan détaillé fait foi).
+1. Lis `docs/plan-implementation.md` (plan détaillé) et **`Todo.md`** (reste à faire priorisé).
 2. Respecte la **démarche itérative** : propose, fais valider, exécute une étape, vérifie.
    Style concis, droit au but, phrases courtes.
-3. **Prochaine étape = Étape 7 (planification)** : déclencher `synthesia.brief.pipeline`
-   automatiquement à 06h30 et 13h30 (cron WSL, ou systemd timer). Penser : où vivent les
-   logs, que se passe-t-il si une exécution échoue, le serveur API tourne-t-il en continu
-   (service) à côté.
-4. Puis **Étape 8 (accès distant)** : Tailscale (ou Wireguard) pour consulter l'API depuis
-   l'extérieur **sans exposer** le serveur sur Internet.
+3. **Prochaines actions** (toutes côté NAS, via `docs/deploiement-synology.md`) :
+   - **Étape 7** : Planificateur DSM → `docker exec synthesia python -m synthesia.brief.pipeline`
+     à 06h30 et 13h30.
+   - **Étape 8** : Tailscale (NAS + téléphone) → accès extérieur + HTTPS propre.
+   - **Reconstruire l'image** avec le code à jour (correctifs anti-500, progression, pysqlite3).
+   - **Commit Git** (rien n'est versionné).

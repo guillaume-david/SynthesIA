@@ -1,0 +1,11 @@
+# Ne PAS embarquer dans l'image :
+.venv/
+.git/
+data/                 # base + cache locaux (montés en volume sur le NAS)
+**/__pycache__/
+*.py[cod]
+.env                  # la clé API ne doit jamais être dans l'image
+.env.*
+!.env.example
+docs/
+*.md

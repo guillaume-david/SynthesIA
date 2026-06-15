@@ -78,6 +78,7 @@ def executer_brief(
 
     # 2. Tri (Haiku) + mise à jour des scores/domaines/statuts en base.
     titres = [a.titre for a in articles]
+    print(f"Tri (Haiku) de {len(titres)} titres en cours… (~15-40 s)", flush=True)
     tri = {t.index: t for t in trier(titres).articles}
     for idx, t in tri.items():
         if idx >= len(db_ids):
@@ -94,6 +95,7 @@ def executer_brief(
         return []
 
     # 3. Regroupement thématique des retenus.
+    print("Regroupement thématique (Haiku) en cours…", flush=True)
     titres_retenus = [titres[i] for i in retenus]
     clusters = regrouper(titres_retenus).clusters
 
@@ -129,6 +131,7 @@ def executer_brief(
             print(f"  ! « {cluster.theme} » : aucun corps extrait, sauté.")
             continue
 
+        print(f"  analyse (Sonnet) « {cluster.theme} »… (~20-60 s)", flush=True)
         synth = analyser(sources_art)
         rec = base.SyntheseRecord(
             theme=synth.theme, assertion=synth.assertion, parce_que=synth.parce_que,

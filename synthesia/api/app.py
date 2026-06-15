@@ -17,12 +17,27 @@ import html
 import json
 import sqlite3
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse
 
 from synthesia.stockage import base
 
-app = FastAPI(title="SynthesIA", description="Veille stratégique PEMSI")
+
+@asynccontextmanager
+async def lifespan(app: "FastAPI"):
+    """Au démarrage : garantir que les tables existent (base vide → page propre,
+    jamais d'erreur 500 même si le pipeline n'a pas encore tourné)."""
+    conn = base.get_connection()
+    base.init_db(conn)
+    conn.close()
+    yield
+
+
+app = FastAPI(
+    title="SynthesIA", description="Veille stratégique PEMSI", lifespan=lifespan
+)
 
 
 # --------------------------------------------------------------------------- #

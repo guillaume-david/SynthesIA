@@ -1,0 +1,20 @@
+# SynthesIA — déploiement conteneur (Synology Container Manager → « Projet »).
+#
+# La clé API est lue depuis un fichier .env placé À CÔTÉ de ce fichier sur le NAS
+# (jamais dans l'image, jamais commité). Contenu du .env :
+#     ANTHROPIC_API_KEY=sk-ant-...
+#
+# Le port EXTERNE (à gauche du « : ») est libre — mets celui que tu veux.
+
+services:
+  synthesia:
+    build: .
+    image: synthesia:latest
+    container_name: synthesia
+    restart: unless-stopped
+    ports:
+      - "8000:8000"        # "<TON_PORT>:8000" — change uniquement le nombre de gauche
+    volumes:
+      - ./data:/app/data   # base SQLite + cache du modèle, persistés sur le NAS
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}

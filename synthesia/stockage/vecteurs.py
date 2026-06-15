@@ -28,6 +28,10 @@ from . import base
 MODELE_EMBED = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
 DIM = 384
 
+# Le modèle est mis en cache à côté de la base (volume persistant en conteneur)
+# pour ne pas le re-télécharger à chaque redémarrage.
+CACHE_EMBED = base.DB_PATH.parent / ".fastembed"
+
 SCHEMA_VEC = f"""
 CREATE VIRTUAL TABLE IF NOT EXISTS vec_synthese USING vec0(
     synthese_id INTEGER PRIMARY KEY,
@@ -39,7 +43,8 @@ CREATE VIRTUAL TABLE IF NOT EXISTS vec_synthese USING vec0(
 @lru_cache(maxsize=1)
 def _modele() -> TextEmbedding:
     """Charge le modèle une seule fois (téléchargé au 1er appel, puis caché)."""
-    return TextEmbedding(model_name=MODELE_EMBED)
+    CACHE_EMBED.mkdir(parents=True, exist_ok=True)
+    return TextEmbedding(model_name=MODELE_EMBED, cache_dir=str(CACHE_EMBED))
 
 
 def embed(texte: str) -> list[float]:
@@ -61,10 +66,34 @@ def texte_synthese(synthese: sqlite3.Row | base.SyntheseRecord) -> str:
     return " — ".join(c for c in champs if c)
 
 
+def _connexion_pysqlite3(db_path: Path):
+    """Connexion via pysqlite3 (SQLite embarqué supportant les extensions).
+
+    Filet de sécurité pour les conteneurs dont le sqlite3 standard a le
+    chargement d'extensions désactivé.
+    """
+    from pysqlite3 import dbapi2 as _sqlite
+
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    conn = _sqlite.connect(db_path)
+    conn.row_factory = _sqlite.Row
+    conn.execute("PRAGMA foreign_keys = ON")
+    return conn
+
+
 def get_connection(db_path: Path = base.DB_PATH) -> sqlite3.Connection:
-    """Connexion avec l'extension sqlite-vec chargée."""
+    """Connexion avec l'extension sqlite-vec chargée.
+
+    Tente d'abord le sqlite3 standard ; si le chargement d'extensions y est
+    désactivé (certains conteneurs), bascule sur pysqlite3.
+    """
     conn = base.get_connection(db_path)
-    conn.enable_load_extension(True)
+    try:
+        conn.enable_load_extension(True)
+    except (AttributeError, sqlite3.OperationalError):
+        conn.close()
+        conn = _connexion_pysqlite3(db_path)
+        conn.enable_load_extension(True)
     sqlite_vec.load(conn)
     conn.enable_load_extension(False)
     return conn
