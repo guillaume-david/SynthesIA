@@ -10,6 +10,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import anthropic
+from google import genai
+from google.genai import types
+
 
 from .client import MODELE_SYNTHESE, get_client
 from .schemas import Synthese
@@ -51,17 +54,26 @@ def _formater(articles: list[ArticleSource]) -> str:
 
 
 def analyser(
-    articles: list[ArticleSource], client: anthropic.Anthropic | None = None
+    articles: list[ArticleSource], client: genai.Client | None = None
 ) -> Synthese:
     """Produit une synthèse corrélée à partir de 1..N articles d'un même thème."""
     if not articles:
         raise ValueError("Aucun article fourni à analyser.")
     client = client or get_client()
-    reponse = client.messages.parse(
-        model=MODELE_SYNTHESE,
-        max_tokens=8000,
-        system=SYSTEM_SYNTHESE,
-        messages=[{"role": "user", "content": _formater(articles)}],
-        output_format=Synthese,
+    
+    config = types.GenerateContentConfig(
+        system_instruction=SYSTEM_SYNTHESE,
+        temperature=0.2,
+        response_mime_type="application/json",
+        response_schema=Synthese,
     )
-    return reponse.parsed_output
+    
+    reponse = client.models.generate_content(
+        model=MODELE_SYNTHESE,
+        contents=_formater(articles),
+        config=config,
+    )
+    
+    # Le SDK valide et parse automatiquement si response_schema est fourni
+    return reponse.parsed
+    

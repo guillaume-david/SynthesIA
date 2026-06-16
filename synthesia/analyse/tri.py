@@ -12,6 +12,8 @@ thématiques pour permettre une analyse corrélée plutôt qu'un résumé par pi
 from __future__ import annotations
 
 import anthropic
+from google import genai
+from google.genai import types
 
 from .client import MODELE_TRI, get_client
 from .schemas import Regroupement, TriResultat
@@ -40,30 +42,40 @@ def _numeroter(titres: list[str]) -> str:
 
 
 def trier(
-    titres: list[str], client: anthropic.Anthropic | None = None
+    titres: list[str], client: genai.Client | None = None
 ) -> TriResultat:
     """Passe 1 : note chaque titre (0-100) + domaines PEMSI pressentis."""
     client = client or get_client()
-    reponse = client.messages.parse(
-        model=MODELE_TRI,
-        max_tokens=4000,
-        system=SYSTEM_TRI,
-        messages=[{"role": "user", "content": _numeroter(titres)}],
-        output_format=TriResultat,
+    
+    config = types.GenerateContentConfig(
+        system_instruction=SYSTEM_TRI,
+        response_mime_type="application/json",
+        response_schema=TriResultat,
     )
-    return reponse.parsed_output
+    
+    reponse = client.models.generate_content(
+        model=MODELE_TRI,
+        contents=_numeroter(titres),
+        config=config,
+    )
+    return reponse.parsed
 
 
 def regrouper(
-    titres: list[str], client: anthropic.Anthropic | None = None
+    titres: list[str], client: genai.Client | None = None
 ) -> Regroupement:
     """Passe 1bis : regroupe les titres en clusters thématiques."""
     client = client or get_client()
-    reponse = client.messages.parse(
-        model=MODELE_TRI,
-        max_tokens=2000,
-        system=SYSTEM_REGROUPEMENT,
-        messages=[{"role": "user", "content": _numeroter(titres)}],
-        output_format=Regroupement,
+    
+    config = types.GenerateContentConfig(
+        system_instruction=SYSTEM_REGROUPEMENT,
+        response_mime_type="application/json",
+        response_schema=Regroupement,
     )
-    return reponse.parsed_output
+    
+    reponse = client.models.generate_content(
+        model=MODELE_TRI,
+        contents=_numeroter(titres),
+        config=config,
+    )
+    return reponse.parsed

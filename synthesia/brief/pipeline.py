@@ -18,6 +18,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+import time  
 
 from synthesia.analyse.synthese import ArticleSource, analyser
 from synthesia.analyse.tri import regrouper, trier
@@ -78,9 +79,9 @@ def executer_brief(
     ]
     print(f"Collecte : {len(articles)} articles persistés.")
 
-    # 2. Tri (Haiku) + mise à jour des scores/domaines/statuts en base.
+    # 2. Tri + mise à jour des scores/domaines/statuts en base.
     titres = [a.titre for a in articles]
-    print(f"Tri (Haiku) de {len(titres)} titres en cours… (~15-40 s)", flush=True)
+    print(f"Tri de {len(titres)} titres en cours… (~15-40 s)", flush=True)
     tri = {t.index: t for t in trier(titres).articles}
     for idx, t in tri.items():
         if idx >= len(db_ids):
@@ -97,7 +98,7 @@ def executer_brief(
         return []
 
     # 3. Regroupement thématique des retenus.
-    print("Regroupement thématique (Haiku) en cours…", flush=True)
+    print("Regroupement thématique en cours…", flush=True)
     titres_retenus = [titres[i] for i in retenus]
     clusters = regrouper(titres_retenus).clusters
 
@@ -119,7 +120,14 @@ def executer_brief(
 
     # 5. Pour chaque cluster retenu : extraction → analyse → persistance + index.
     produites: list[SyntheseProduite] = []
-    for cluster, idx_reels, score in a_traiter:
+    for idx_cluster, (cluster, idx_reels, score) in enumerate(a_traiter):
+        
+        # Pause de sécurité pour le Free Tier de Gemini 2.5 Pro (limite à 2 RPM)
+        # On n'attend pas pour le premier cluster, uniquement pour les suivants
+        if idx_cluster > 0:
+            print("⏳ Pause de sécurité de 30 secondes pour respecter le quota API Gemini...", flush=True)
+            time.sleep(30)
+
         sources_art: list[ArticleSource] = []
         ids_art: list[int] = []
         for i in idx_reels[:max_art]:
@@ -133,7 +141,7 @@ def executer_brief(
             print(f"  ! « {cluster.theme} » : aucun corps extrait, sauté.")
             continue
 
-        print(f"  analyse (Sonnet) « {cluster.theme} »… (~20-60 s)", flush=True)
+        print(f"  analyse (Gemini-Flash) « {cluster.theme} »…", flush=True)
         synth = analyser(sources_art)
         rec = base.SyntheseRecord(
             theme=synth.theme, assertion=synth.assertion, parce_que=synth.parce_que,

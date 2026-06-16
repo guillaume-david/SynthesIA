@@ -20,6 +20,11 @@ consultable depuis un navigateur (mobile compris).
    (Modèle : `.env.example`.)
 2. Dépendances installées via **uv** (automatique au premier `uv run`).
 
+
+## Pour la migration (Anthropic / Grok / Gemini...)
+fichiers à modifier:
+.env
+client.py ()
 ---
 
 ## Comment ça marche — 2 programmes distincts

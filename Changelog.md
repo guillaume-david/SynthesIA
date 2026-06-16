@@ -1,5 +1,9 @@
 # Changelog
 
+## 20260616 migration vers Gemini pour limiter les coûts
+- ajout de GEMINI_API_KEY dans .env
+- modification de analyse/client.py analyse/tri.py analyse/synthèse.py et analyse/pipeline.py (partie 5)
+
 ## 20260614
 claude --resume 12e43257-dbfa-466a-914f-789d9b75c45d
 
