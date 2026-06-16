@@ -24,7 +24,9 @@ consultable depuis un navigateur (mobile compris).
 ## Pour la migration (Anthropic / Grok / Gemini...)
 fichiers à modifier:
 .env
-client.py ()
+client.py
+synthese.py
+tri.py
 ---
 
 ## Comment ça marche — 2 programmes distincts
