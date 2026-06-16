@@ -13,11 +13,12 @@ services:
     container_name: synthesia
     restart: unless-stopped
     ports:
-      - "8000:8000"        # "<TON_PORT>:8000" — change uniquement le nombre de gauche
+      - "9595:8000"        # "<TON_PORT>:8000" — change uniquement le nombre de gauche
     volumes:
       - ./data:/app/data   # base SQLite + cache du modèle, persistés sur le NAS
-    environment:
+  environment:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
       - EMAIL_EXPEDITEUR=${EMAIL_EXPEDITEUR:-}
       - EMAIL_MOT_DE_PASSE=${EMAIL_MOT_DE_PASSE:-}
       - EMAIL_DESTINATAIRE=${EMAIL_DESTINATAIRE:-}
